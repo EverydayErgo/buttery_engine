@@ -1,43 +1,3 @@
-#include QMK_KEYBOARD_H
-
-{includes}
-
-{keycodes}
-
-{pseudolayers}
-
-{keyboard_parameters}
-
-{keymaps}
-
-{buffers}
-
-enum chord_states {{
-    IDLE,
-    READY,
-    ACTIVATED,
-    DEACTIVATED,
-    PRESS_FROM_ACTIVE,
-    FINISHED_FROM_ACTIVE,
-    IDLE_IN_DANCE,
-    READY_IN_DANCE,
-    FINISHED,
-    LOCKED,
-    READY_LOCKED,
-    RESTART,
-    IN_ONE_SHOT
-}};
-
-struct Chord {{
-    HASH_TYPE keycodes_hash;
-    uint8_t pseudolayer;
-    uint8_t* state;
-    uint8_t* counter;
-    uint16_t value1;
-    uint8_t value2;
-    void (*function) (const struct Chord*);
-}};
-
 uint8_t current_pseudolayer = DEFAULT_PSEUDOLAYER;
 bool lock_next = false;
 uint16_t chord_timer = 0;
@@ -99,16 +59,16 @@ bool handle_US_ANSI_shifted_keys(int16_t keycode, bool in) {{
             regular_keycode = KC_EQUAL;
             break;
         case KC_LEFT_CURLY_BRACE:
-            regular_keycode = KC_LBRACKET;
+            regular_keycode = KC_LEFT_BRACKET;
             break;
         case KC_RIGHT_CURLY_BRACE:
-            regular_keycode = KC_RBRACKET;
+            regular_keycode = KC_RIGHT_BRACKET;
             break;
         case KC_PIPE:
-            regular_keycode = KC_BSLASH;
+            regular_keycode = KC_BACKSLASH;
             break;
         case KC_COLON:
-            regular_keycode = KC_SCOLON;
+            regular_keycode = KC_SEMICOLON;
             break;
         case KC_DOUBLE_QUOTE:
             regular_keycode = KC_QUOTE;
@@ -193,6 +153,101 @@ void single_dance(const struct Chord* self) {{
     }}
 }}
 
+void single_dance_mouse(const struct Chord* self) {{
+    report_mouse_t report = pointing_device_get_report();    
+    switch (*self->state) {{
+        case ACTIVATED:
+            switch (self->value1) {{
+            case MS_WHLU:
+                report.v = 1;
+                break;
+            case MS_WHLD:
+                report.v = -1;
+                break;
+            case MS_WHLR:
+                report.h = -1;
+                break;
+            case MS_WHLL:
+                report.h = 1;
+                break;
+            case MS_BTN1:
+                report.buttons |= 1;
+                break;
+            case MS_BTN2:
+                report.buttons |= 2;
+                break;
+            case MS_BTN3:                
+                report.buttons |= 4;
+                break;            
+            case MS_BTN4:                
+                report.buttons |= 8;
+                break;            
+            case MS_BTN5:                
+                report.buttons |= 16;
+                break;
+            case MS_BTN6:                
+                report.buttons |= 32;
+                break;            
+            case MS_BTN7:                
+                report.buttons |= 64;
+                break;
+            case MS_BTN8:                
+                report.buttons |= 128;
+                break;
+            }}          
+            break;        
+        case DEACTIVATED:
+            report.buttons = 0;            
+            report.h = 0;
+            report.v = 0;           
+            *self->state = IDLE;
+            break;
+        case RESTART:
+            report.buttons = 0;            
+            report.h = 0;
+            report.v = 0;           
+            break;
+        default:
+            break;
+    }}   
+    pointing_device_set_report(report);
+    pointing_device_send();
+}}
+
+void single_dance_external(const struct Chord* self) {{
+    static keyrecord_t registered_record = {{0}};
+    static keyevent_t event = {{0}};
+    switch  (*self->state) {{
+        case ACTIVATED:      
+            event = (keyevent_t) {{
+                .type = KEY_EVENT,
+                .pressed = true
+            }};
+            registered_record = (keyrecord_t) {{
+                  .keycode = self->value1,
+            }};
+            registered_record.event = event;
+            process_record(&registered_record);
+            break;
+        case DEACTIVATED:
+            event = (keyevent_t) {{
+                .type = KEY_EVENT,
+                .pressed = false
+            }};
+            registered_record = (keyrecord_t) {{
+                  .keycode = self->value1,
+            }};
+            registered_record.event = event;
+            process_record(&registered_record);
+            *self->state = IDLE;
+            break;
+        case RESTART:
+            break;
+        default:
+            break;
+    }}
+}}
+
 void key_layer_dance(const struct Chord* self) {{
     switch (*self->state) {{
         case ACTIVATED:
@@ -200,10 +255,10 @@ void key_layer_dance(const struct Chord* self) {{
             a_key_went_through = false;
             break;
         case DEACTIVATED:
-        case RESTART:
             if (!a_key_went_through) {{
-                tap_key(self->value1);
-            }}
+                    tap_key(self->value1);
+            }}       
+        case RESTART:
             current_pseudolayer = self->pseudolayer;
             *self->state = IDLE; // does not have effect if the state was RESTART
             break;
@@ -475,14 +530,6 @@ void dynamic_macro_play(const struct Chord* self) {{
     }}
 }}
 
-void string_in(const struct Chord* self) {{
-    if (*self->state == ACTIVATED) {{
-        char buffer[STRING_MAX_LENGTH];
-        strcpy_P(buffer, (char*)pgm_read_word(&(strings[self->value1])));
-        send_string(buffer);
-    }}
-}}
-
 void clear(const struct Chord* self);
 
 void reset_keyboard_kb(void){{
@@ -500,9 +547,19 @@ void reset(const struct Chord* self) {{
     }}
 }}
 
+void string_in(const struct Chord*);
+
 {chords}
 
 {leader_sequences}
+
+void string_in(const struct Chord* self) {{
+    if (*self->state == ACTIVATED) {{
+        char buffer[STRING_MAX_LENGTH];
+        strcpy_P(buffer, (char*)pgm_read_ptr(&(strings[self->value1])));
+        send_string(buffer);
+    }}
+}}
 
 bool are_hashed_keycodes_in_sound(HASH_TYPE keycodes_hash, HASH_TYPE sound) {{
     return (keycodes_hash & sound) == keycodes_hash;
@@ -512,10 +569,39 @@ uint8_t keycode_to_index(uint16_t keycode) {{
     return keycode - FIRST_INTERNAL_KEYCODE;
 }}
 
+bool keys_in_chord(void) {{
+    struct Chord chord_storage;
+    struct Chord* chord_ptr;
+    struct Chord* chord;
+    uint32_t keys_hash = 0;   
+
+    for(int i=NUMBER_OF_KEYS-1;i>=0;i--) {{
+        if(keycodes_buffer_array[i] != 0) {{
+            keys_hash |= ((uint32_t)1 << i); 
+        }}
+    }}
+
+    for(int j=0;j<NUMBER_OF_CHORDS; j++) {{
+        chord_ptr = (struct Chord*) pgm_read_ptr (&list_of_chords[j]);
+        memcpy_P(&chord_storage, chord_ptr, sizeof(struct Chord));
+        chord = &chord_storage;
+        if((keys_hash == chord->keycodes_hash) || (keys_hash == 0)) {{            
+            return true;
+        }}
+    }}
+ 
+    return false;
+}}
+
+void clear_all(void);
 void sound_keycode_array(uint16_t keycode) {{
     uint8_t index = keycode_to_index(keycode);
     keycode_index++;
     keycodes_buffer_array[index] = keycode_index;
+
+    if(!keys_in_chord()) {{
+       clear_all();
+    }}
 }}
 
 void silence_keycode_hash_array(HASH_TYPE keycode_hash) {{
@@ -551,7 +637,7 @@ void kill_one_shots(void) {{
     struct Chord* chord;
     
     for (int i = 0; i < NUMBER_OF_CHORDS; i++) {{
-        chord_ptr = (struct Chord*) pgm_read_word (&list_of_chords[i]);
+        chord_ptr = (struct Chord*) pgm_read_ptr (&list_of_chords[i]);
         memcpy_P(&chord_storage, chord_ptr, sizeof(struct Chord));
         chord = &chord_storage;
         
@@ -571,7 +657,7 @@ void process_finished_dances(void) {{
     struct Chord* chord;
     
     for (int i = 0; i < NUMBER_OF_CHORDS; i++) {{
-        chord_ptr = (struct Chord*) pgm_read_word (&list_of_chords[i]);
+        chord_ptr = (struct Chord*) pgm_read_ptr (&list_of_chords[i]);
         memcpy_P(&chord_storage, chord_ptr, sizeof(struct Chord));
         chord = &chord_storage;
         
@@ -620,7 +706,7 @@ void remove_subchords(void) {{
     struct Chord* chord;
     
     for (int i = 0; i < NUMBER_OF_CHORDS; i++) {{
-        chord_ptr = (struct Chord*) pgm_read_word (&list_of_chords[i]);
+        chord_ptr = (struct Chord*) pgm_read_ptr (&list_of_chords[i]);
         memcpy_P(&chord_storage, chord_ptr, sizeof(struct Chord));
         chord = &chord_storage;
         
@@ -634,7 +720,7 @@ void remove_subchords(void) {{
         for (int j = 0; j < NUMBER_OF_CHORDS; j++) {{
             if (i == j) {{continue;}}
             
-            chord_ptr_2 = (struct Chord*) pgm_read_word (&list_of_chords[j]);
+            chord_ptr_2 = (struct Chord*) pgm_read_ptr (&list_of_chords[j]);
             memcpy_P(&chord_storage_2, chord_ptr_2, sizeof(struct Chord));
             chord_2 = &chord_storage_2;
             
@@ -662,7 +748,7 @@ void process_ready_chords(void) {{
         struct Chord* chord;
         
         for (int i = 0; i < NUMBER_OF_CHORDS; i++) {{
-            chord_ptr = (struct Chord*) pgm_read_word (&list_of_chords[i]);
+            chord_ptr = (struct Chord*) pgm_read_ptr (&list_of_chords[i]);
             memcpy_P(&chord_storage, chord_ptr, sizeof(struct Chord));
             chord = &chord_storage;
             
@@ -701,7 +787,7 @@ void process_ready_chords(void) {{
         // execute logic
         // this should be only one chord
         for (int i = 0; i < NUMBER_OF_CHORDS; i++) {{
-            chord_ptr = (struct Chord*) pgm_read_word (&list_of_chords[i]);
+            chord_ptr = (struct Chord*) pgm_read_ptr (&list_of_chords[i]);
             memcpy_P(&chord_storage, chord_ptr, sizeof(struct Chord));
             chord = &chord_storage;
             
@@ -753,7 +839,7 @@ void deactivate_active_chords(uint16_t keycode) {{
     struct Chord* chord;
     
     for (int i = 0; i < NUMBER_OF_CHORDS; i++) {{
-        chord_ptr = (struct Chord*) pgm_read_word (&list_of_chords[i]);
+        chord_ptr = (struct Chord*) pgm_read_ptr (&list_of_chords[i]);
         memcpy_P(&chord_storage, chord_ptr, sizeof(struct Chord));
         chord = &chord_storage;
         
@@ -828,8 +914,9 @@ void process_leader(void) {{
     }}
 }}
 
-bool process_record_user(uint16_t keycode, keyrecord_t *record) {{
-    if (keycode < FIRST_INTERNAL_KEYCODE || keycode > LAST_INTERNAL_KEYCODE) {{
+bool process_record_buttery_engine(uint16_t keycode, keyrecord_t *record) {{
+   
+    if (keycode < FIRST_INTERNAL_KEYCODE || keycode > LAST_INTERNAL_KEYCODE) {{        
         return true;
     }}
     
@@ -843,9 +930,9 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {{
     leader_timer = timer_read();
     
     return false;
-}}
+}} 
 
-void matrix_scan_user(void) {{
+void housekeeping_task_buttery_engine(void) {{
     bool chord_timer_expired = timer_elapsed(chord_timer) > CHORD_TIMEOUT;
     if (chord_timer_expired && keycodes_buffer_array_min(NULL)) {{
         process_ready_chords();
@@ -876,7 +963,7 @@ void clear(const struct Chord* self) {{
         struct Chord* chord;
         
         for (int i = 0; i < NUMBER_OF_CHORDS; i++) {{
-            chord_ptr = (struct Chord*) pgm_read_word (&list_of_chords[i]);
+            chord_ptr = (struct Chord*) pgm_read_ptr (&list_of_chords[i]);
             memcpy_P(&chord_storage, chord_ptr, sizeof(struct Chord));
             chord = &chord_storage;
             
@@ -907,4 +994,47 @@ void clear(const struct Chord* self) {{
             dynamic_macro_buffer[i] = 0;
         }}
     }}
+}}
+
+void clear_all(void) {{
+    struct Chord chord_storage;
+    struct Chord* chord_ptr;
+    struct Chord* chord;
+
+    for (int i = 0; i < NUMBER_OF_CHORDS; i++) {{
+        chord_ptr = (struct Chord*) pgm_read_ptr (&list_of_chords[i]);
+        memcpy_P(&chord_storage, chord_ptr, sizeof(struct Chord));
+        chord = &chord_storage;
+        
+        *chord->state = IDLE;
+        
+        if (chord->counter) {{
+            *chord->counter = 0;
+        }}
+    }}
+    
+    // clear keyboard
+    clear_keyboard();
+    send_keyboard_report();
+    
+    // switch to default pseudolayer
+    current_pseudolayer = DEFAULT_PSEUDOLAYER;
+    
+    // clear all keyboard states
+    lock_next = false;
+    autoshift_mode = true;
+    command_mode = 0;
+    in_leader_mode = false;
+    leader_ind = 0;
+    dynamic_macro_mode = false;
+    a_key_went_through = false;
+    
+    for (int i = 0; i < DYNAMIC_MACRO_MAX_LENGTH; i++) {{
+        dynamic_macro_buffer[i] = 0;
+    }}
+
+    for(int i=0;i<NUMBER_OF_KEYS;i++) {{
+        keycodes_buffer_array[i] = 0;
+    }}  
+    keycode_index = 0;
 }}

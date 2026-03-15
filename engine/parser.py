@@ -4,9 +4,9 @@ from engine import chord_parser
 from engine.utils import *
 
 
-def parse_includes(keymap_def):
-    includes = [f"#include {file}" for file in keymap_def["extra_dependencies"]]
-    return reduce(newline_separator, includes)
+def parse_includes(keymap_def):    
+    includes = [f"#include \"{file}\"" for file in keymap_def["extra_dependencies"]]
+    return reduce(newline_separator, includes, "")
 
 def parse_new_keycodes(keymap_def):
     number_of_keys = len(keymap_def["keys"])
@@ -99,7 +99,7 @@ def parse_leader_sequences(keymap_def):
         fncs = reduce(newline_separator, [sequence["function"] for sequence in leader_sequences])
         fnc_names = reduce(comma_separator, ["&" + sequence["name"] for sequence in leader_sequences])
         seqence_defs = [reduce(comma_separator, sequence["sequence"] + ["0"] * (leader_max_length - len(sequence["sequence"]))) for sequence in leader_sequences]
-        sequence_defs = reduce(newline_separator, [f"    {{{s}}}" for s in seqence_defs])
+        sequence_defs = reduce(newline_comma_separator, [f"\t{{{s}}}" for s in seqence_defs])
         return f"""#define NUMBER_OF_LEADER_COMBOS {len(leader_sequences)}
 
 {fncs}

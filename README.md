@@ -2,29 +2,55 @@
 
 ## About
 
-This is a custom chording engine. See butterstick:tomas keymap for an example use.
+This is a custom chording engine. See [butterstick:tomas](https://github.com/DennyTom/qmk_firmware/blob/feature/buttery_engine_cleanup/keyboards/butterstick/keymaps/dennytom/keymap_def.json) keymap for an example use. Another more up to date example can be found [here](https://github.com/EverydayErgo/Chordie). 
 
 Pure QMK combos were not sufficient as they do not really support overlapping combos. For example. if you define 3 combos `(KC_Q, KC_W)`, `(KC_Z, KC_X)` and `(KC_Q, KC_W, KC_Z, KC_X)` and press Q, W, Z and X at the same time, all three combos will activate. The default butterstick keymap solves this by relying on modified stenografic engine. However, this doesn't allow for comfortable typing in the traditional way. The steno chord activates only when *all* keys are lifted and makes it difficult to implement some advanced features.
 
-To use it, you will need a general purpose preprocessor [pyexpander](http://pyexpander.sourceforge.net/). The reason behind general purpose preprocessor is abstraction when defining the keymap. Every function on this keymap is a chord (combo). Meaning you have to follow syntax similar to pure QMK combos. Furthermore you can not use functions to generate these since you want to store them in PROGMEM. The resulting keymap file is long, difficult to navigate and even more difficult to modify. It is *nearly impossible* to write C preprocessor macros that make it as easy as pure QMK keymap. The general preprocessor makes it relatively easy. Since I use it heavily and since you will be modifying the code for the preprocessor and not the C code, the code is written to be well formatted in the file `keymap.c.in` and *not to produce pretty C code* in `keymap.c`. My `keymap.c` ends up over 7000 lines long and more than half whitespace. To produce C code from the `keymap.c.in` file, run
-
-```sh
-python3 expander3.py -f keymap.c.in > keymap.c
-```
-
-If you want to have a nice `keymap.c`, use some linter or formatter. I like `indent`:
-
-```sh
-indent keymap.c -bad -bap -bbb -br -brf -brs -ce -i4 -l100 -nut -sob
-```
-
-I just broke it on my system somehow, so my current `keymap.c` is a mess.
-
-Thanks to the provided macros, you shouldn't have to modify any file except `keymap.c.in`. If you are using a different keyboard, you will have to also create your own `keyboard.inc`.
 
 ## Features Overview
 
 The chording engine completely sidesteps QMK's key event processing. Most of QMK's features are reimplemented. A list with short description follow, examples and further details follow later in this README.
+
+### QMK Community module
+
+Engine is compatible with the latest QMK Community module feature. In order to use it follow these steps.
+
+Read the QMK [description](https://docs.qmk.fm/features/community_modules#adding-a-community-module-to-your-external-userspace) on how to add modules to your external user space, or just follow below
+```sh
+    cd /path/to/your/external/userspace
+    mkdir -p modules    
+    git submodule add https://github.com/DennyTom/buttery_engine.git modules/dennytom/buttery_engine
+    git submodule update --init --recursive
+```
+Alternatively you can add it to your **qmk_firmware/modules** folder.
+```sh
+    cd qmk_firmware        
+    git submodule add https://github.com/DennyTom/buttery_engine.git modules/dennytom/buttery_engine
+    git submodule update --init --recursive
+```
+Prepare your
+```sh
+    keymap_def.json
+```
+
+Generate source files with 
+```sh
+   python3 my_parser.py keymap_def.json
+```
+This will generate 
+```sh
+    introspection.h
+    introspection.c
+```
+In your **keyboard/keymap** directory add **keymap.json** file with 
+```json
+    {
+        "modules" : [                        
+            "dennytom/buttery_engine"
+        ]        
+    }   
+```
+This will let QMK know that you're using this community module. You can leave your **keymap.c** file empty because QMK will add **introspection.*** files to it. You can also add your own functionality there.
 
 ### Chords
 
@@ -80,7 +106,7 @@ in `keyboard.inc`. This macro gets expanded and creates the keycodes definitions
 
 *The chording engine in it's current implementation can handle up to 64 keys. If you need to support more, contact me (email or u/DennyTom at Reddit).*
 
-When `process_record_user()` gets one of the internal keycodes, it returns `true`, completely bypassing keyboard's and QMK's `process_record` functions. *All other* keycodes get passed down. This means you can mix this custom chording engine and your keyboard's default processing, just pass in your keycodes. My `keyboard_macros.inc` is using the `internal_keycodes` macro in to make it easy to define all the internal keycodes, define my only QMK layer, define the smallest type for hashing keys and macros for hashing.
+When `process_record_buttery_engine()` gets one of the internal keycodes, it returns `true`, completely bypassing keyboard's and QMK's `process_record` functions. *All other* keycodes get passed down. This means you can mix this custom chording engine and your keyboard's default processing, just pass in your keycodes. My `keyboard_macros.inc` is using the `internal_keycodes` macro in to make it easy to define all the internal keycodes, define my only QMK layer, define the smallest type for hashing keys and macros for hashing.
 
 If you want to add more QMK layers or have a mixed layer, you will have to write it manually. To make that easier, you can set `custom_keymaps_array` to `True` and define your own `keymaps[]` array. Your `keymap.c.in` then should look something like this:
 
@@ -197,6 +223,10 @@ These two macros take care of most chords, you need to manually add only chords 
 The complete list of strings that these macros can accept is:
 
 * `KC_X`: Send code `KC_X` just like a normal keyboard. Often the parser will be able to deal even without the `KC_` at the beginning. Basic keycodes and US ANSI shifted keycodes are supported. Most quantum and advanced keycodes *do not*. I will be adding these as needed.
+
+* `PD(X)`: Used for handling mouse buttons (buttons 1-8) and mouse scroll (horizontal/vertical). Keys with PD() chords can also be mixed with other keys to create other chords.
+
+* `EXT(X)`: Send keycode back to QMK for processing instead of sending it to PC. This is used for things like Community Modules that expose their own keycodes. 
 
 * `STR("X")`: Send string "x" on each activation of the chord. Once again, watch out for quoting and escaping characters. If you want special characters (especially quotes) in your string, look up Python reference for string literals and experiment. Also, because of how the string gets parsed, it is not possible to use `(` in the string. 
 

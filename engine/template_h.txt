@@ -1,0 +1,40 @@
+#include QMK_KEYBOARD_H
+
+{includes}
+
+{keycodes}
+
+{pseudolayers}
+
+{keyboard_parameters}
+
+{keymaps}
+
+{buffers}
+
+enum chord_states {{
+    IDLE,
+    READY,
+    ACTIVATED,
+    DEACTIVATED,
+    PRESS_FROM_ACTIVE,
+    FINISHED_FROM_ACTIVE,
+    IDLE_IN_DANCE,
+    READY_IN_DANCE,
+    FINISHED,
+    LOCKED,
+    READY_LOCKED,
+    RESTART,
+    IN_ONE_SHOT
+}};
+
+struct Chord {{
+    HASH_TYPE keycodes_hash;
+    uint8_t pseudolayer;
+    uint8_t* state;
+    uint8_t* counter;
+    uint16_t value1;
+    uint8_t value2;
+    void (*function) (const struct Chord*);
+}};
+

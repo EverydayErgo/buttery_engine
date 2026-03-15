@@ -1,7 +1,7 @@
 import string
 
 comma_separator = (lambda x, y:  f"{x}, {y}")
-newline_comma_separator = (lambda x, y: f"{x},\n\t{y}")
+newline_comma_separator = (lambda x, y: f"{x},\n{y}")
 plus_separator = (lambda x, y: f"{x} + {y}")
 newline_separator = (lambda x, y: f"{x}\n{y}")
 

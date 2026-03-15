@@ -1,0 +1,4 @@
+.DS_Store
+/engine/__pycache__
+engine/__init__.pyc
+engine/__init__.py

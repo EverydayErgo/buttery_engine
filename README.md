@@ -58,7 +58,7 @@ Once again, *everything* on this keymap is a chord. Even sending `KC_Q` is done 
 
 ### Tap-Dance
 
-To make it even stranger, all chords are tap-dance chords. They are relatively simple state machines that execute a specific function every time they change state. For simplicity and optimization purposes, there are a few prewritten functions that implement common features like "send a single key" or "lock". Any number of chords can be "in dance" at any given moment without affecting each other's state. Custom dances can be easily added.
+To make it even stranger, all chords are tap-dance chords. They are relatively simple state machines that execute a specific function every time they change state. For simplicity and optimization purposes, there are a few pre-written functions that implement common features like "send a single key" or "lock". Any number of chords can be "in dance" at any given moment without affecting each other's state. Custom dances can be easily added.
 
 ### Pseudolayers
 
@@ -90,10 +90,6 @@ A sequence of keycodes can be recorded and stored in the RAM of the keyboard and
 
 ## Examples and Details
 
-### Implementation
-
-The source files are split into three categories. `keymap.c.in` is the main file. In defines all the chords that you wish to use and includes all the other files. `keyboard.inc` file contains all details specific to the board this should be running on -- timings, keys, macros specific to the amount of keys. Finally everything else is in this folder and contains all the definitions, algorithms and macros. Because all the files here are included by the pyexpander, you do not need to worry about adding the user space in your path, as long as in your `keymap.c.in` file is properly defined the `engine_path` variable.
-
 ### Keycodes
 
 I do not have experience with stenography, so the the steno keycodes are hard for me to remember. That is why the keymap is using new keycodes TOP1, TOP2, ... TOP9, TOP0, BOT1, BOT2, ... BOT9 and BOT0.
@@ -102,14 +98,13 @@ I do not have experience with stenography, so the the steno keycodes are hard fo
 $internal_keycodes("TOP1, TOP2, TOP3, TOP4, TOP5, TOP6, TOP7, TOP8, TOP9, TOP0, BOT1, BOT2, BOT3, BOT4, BOT5, BOT6, BOT7, BOT8, BOT9, BOT0")
 ```
 
-in `keyboard.inc`. This macro gets expanded and creates the keycodes definitions (starting at `TOP1 = SAFE_RANGE`), creates a single keymaps layer with these keycodes and finally creates `H_TOP1` to `H_BOT0` (or whatever keycodes you define) macros used for defining which keys have to be pressed for each added chord. In my keymap I also define macros for easy adding a large number of chords.
+ This macro gets expanded and creates the keycodes definitions (starting at `TOP1 = SAFE_RANGE`), creates a single keymaps layer with these keycodes and finally creates `H_TOP1` to `H_BOT0` (or whatever keycodes you define) macros used for defining which keys have to be pressed for each added chord. In my keymap I also define macros for easy adding a large number of chords.
 
 *The chording engine in it's current implementation can handle up to 64 keys. If you need to support more, contact me (email or u/DennyTom at Reddit).*
 
-When `process_record_buttery_engine()` gets one of the internal keycodes, it returns `true`, completely bypassing keyboard's and QMK's `process_record` functions. *All other* keycodes get passed down. This means you can mix this custom chording engine and your keyboard's default processing, just pass in your keycodes. My `keyboard_macros.inc` is using the `internal_keycodes` macro in to make it easy to define all the internal keycodes, define my only QMK layer, define the smallest type for hashing keys and macros for hashing.
+When `process_record_buttery_engine()` gets one of the internal keycodes, it returns `true`, completely bypassing keyboard's and QMK's `process_record` functions. *All other* keycodes get passed down. This means you can mix this custom chording engine and your keyboard's default processing, just pass in your keycodes. 
 
-If you want to add more QMK layers or have a mixed layer, you will have to write it manually. To make that easier, you can set `custom_keymaps_array` to `True` and define your own `keymaps[]` array. Your `keymap.c.in` then should look something like this:
-
+If you want to add more QMK layers or have a mixed layer, you will have to write it manually. To make that easier, you can set `custom_keymaps_array` to `True` and define your own `keymaps[]` array. 
 ```c
 ...
 $py(custom_keymaps_array = True)

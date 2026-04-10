@@ -97,6 +97,21 @@ bool handle_US_ANSI_shifted_keys(int16_t keycode, bool in) {{
     return is_US_ANSI_shifted;
 }}
 
+void send_to_qmk(uint16_t keycode, bool pressed) {{
+    static keyrecord_t registered_record = {{0}};
+    static keyevent_t event = {{0}};
+
+     event = (keyevent_t) {{
+                .type = KEY_EVENT,
+                .pressed = pressed
+            }};
+    registered_record = (keyrecord_t) {{
+                .keycode = keycode, 
+            }};
+    registered_record.event = event;
+    process_record(&registered_record);
+}}
+
 void key_in(int16_t keycode) {{
     if (command_mode == 1 && command_ind < COMMAND_MAX_LENGTH) {{
         command_buffer[command_ind] = keycode;
@@ -214,34 +229,18 @@ void single_dance_mouse(const struct Chord* self) {{
     pointing_device_send();
 }}
 
+
 void single_dance_external(const struct Chord* self) {{
-    static keyrecord_t registered_record = {{0}};
-    static keyevent_t event = {{0}};
     switch  (*self->state) {{
         case ACTIVATED:      
-            event = (keyevent_t) {{
-                .type = KEY_EVENT,
-                .pressed = true
-            }};
-            registered_record = (keyrecord_t) {{
-                  .keycode = self->value1,
-            }};
-            registered_record.event = event;
-            process_record(&registered_record);
+            send_to_qmk(self->value1, true);
             break;
         case DEACTIVATED:
-            event = (keyevent_t) {{
-                .type = KEY_EVENT,
-                .pressed = false
-            }};
-            registered_record = (keyrecord_t) {{
-                  .keycode = self->value1,
-            }};
-            registered_record.event = event;
-            process_record(&registered_record);
+            send_to_qmk(self->value1, false);
             *self->state = IDLE;
             break;
         case RESTART:
+            send_to_qmk(self->value1, false);
             break;
         default:
             break;
@@ -411,17 +410,17 @@ void one_shot_key(const struct Chord* self) {{
         case ACTIVATED:
             break;
         case DEACTIVATED:
-            key_in(self->value1);
+            send_to_qmk(self->value1, true);
             *self->state = IN_ONE_SHOT;
             break;
         case FINISHED:
         case PRESS_FROM_ACTIVE:
-            key_in(self->value1);
+            send_to_qmk(self->value1, true);
             a_key_went_through = false;
             break;
         case RESTART:
             if (a_key_went_through) {{
-                key_out(self->value1);
+                send_to_qmk(self->value1, false);
             }} else {{
                 *self->state = IN_ONE_SHOT;
             }}
@@ -1037,4 +1036,8 @@ void clear_all(void) {{
         keycodes_buffer_array[i] = 0;
     }}  
     keycode_index = 0;
+}}
+
+bool is_pseudolayer_on(uint8_t pseudolayer){{
+    return current_pseudolayer==pseudolayer;
 }}

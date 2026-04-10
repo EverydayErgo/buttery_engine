@@ -38,3 +38,5 @@ struct Chord {{
     void (*function) (const struct Chord*);
 }};
 
+bool is_pseudolayer_on(uint8_t);
+
